@@ -7,8 +7,9 @@ A Hello World SPR plugin implemented as a single
 There is no Linux kernel, init process, guest userspace, or sidecar service.
 
 The kernel itself terminates a VirtIO-vsock stream on port 4040 and serves the
-plugin HTML and `/status` endpoint. SPR and its krun runtime map the plugin's
-host Unix socket to that guest port:
+plugin HTML and `/status` endpoint. It also drives VirtIO-net, obtains its IPv4
+configuration from SPR DHCP, and verifies outbound DNS and TCP connectivity.
+SPR and its krun runtime map the plugin's host Unix socket to the guest port:
 
 ```text
 SPR API -> /state/plugins/spr-tamago-demo/socket.sock
@@ -16,8 +17,14 @@ SPR API -> /state/plugins/spr-tamago-demo/socket.sock
         -> TamaGo kernel HTTP handler
 ```
 
-No guest or container IP address is configured by this plugin. The UI upcall
-does not use TCP, a TAP device, or a Docker bridge.
+The UI upcall remains on vsock and does not depend on IP networking. The
+separate Internet path is fully dynamic—there is no hard-coded guest address,
+gateway, or DNS server:
+
+```text
+TamaGo -> usbarmory/go-net/virtio -> krun TAP -> SPR plugin bridge
+       -> SPR DHCP/DNS/policy -> WAN
+```
 
 ## What is in the image
 
@@ -26,6 +33,9 @@ The one `scratch` image contains:
 - a raw ARM64 TamaGo kernel at `/tamago-kernel`;
 - the corresponding ELF at `/unused`, retained for inspection; and
 - no Linux filesystem or executable userspace.
+
+The kernel includes the pinned `usbarmory/go-net` VirtIO-net driver, a small
+raw-Ethernet DHCP client, and go-net's userspace IP stack.
 
 The Docker command is deliberately `/unused`: the trusted SPR krun policy
 selects `/tamago-kernel` as the VM kernel before a container process could run.
@@ -41,6 +51,17 @@ SPR already supports the standard UI upcall annotations used here:
 krun.vsock_path: /state/plugins/spr-tamago-demo/socket.sock
 krun.vsock_port: "4040"
 ```
+
+The network path uses the same krun TAP annotations as other SPR KVM plugins:
+
+```yaml
+krun.tap_name: kruntap0
+krun.net_uplink: eth0
+```
+
+`plugin.json` declares the `spr-tamago-demo` interface, a stable locally
+administered device MAC, and the `wan` and `dns` policies. SPR owns addressing
+and routing and supplies them to the kernel with DHCP.
 
 Upstream crun/libkrun also support `kernel_path` and raw external kernels, but
 SPR's hardened `spr-krun` runtime correctly ignores image-controlled
@@ -71,13 +92,17 @@ GOOSPKG=github.com/usbarmory/tamago
 ```
 
 The kernel uses TamaGo's generic VirtIO MMIO transport and split queues to
-drive device ID 19, VirtIO-vsock. Its small in-tree stream implementation
-handles connection setup, credit accounting, request reassembly, response
-framing, and shutdown directly in bare-metal Go.
+drive both device ID 19 (VirtIO-vsock) and device ID 1 (VirtIO-net). Its small
+in-tree vsock implementation handles the SPR UI stream directly in bare-metal
+Go. The network interface is the official
+[`usbarmory/go-net/virtio`](https://github.com/usbarmory/go-net/tree/main/virtio)
+driver requested for this demo.
 
-`usbarmory/go-net/virtio` is a VirtIO network-device driver (device ID 1). It
-was appropriate for an earlier TCP prototype but is intentionally not used by
-this direct vsock architecture.
+At boot the kernel discovers VirtIO-net, starts its queues, performs the DHCP
+DISCOVER/REQUEST exchange over raw Ethernet, then hands the device and lease to
+go-net's IP stack. The page and `/status` expose the device, MAC, lease,
+gateway, DNS servers, and the result of a DNS plus TCP probe to
+`example.com:80`.
 
 TamaGo's current `kvm/virtio` directory also contains AMD64 PCI transport
 files without architecture build constraints. The builder makes a temporary
@@ -109,8 +134,8 @@ Build or publish the single ARM64 image:
 ```
 
 The default tag is `ghcr.io/spr-networks/spr-tamago-demo:latest`. The builder
-image, TamaGo module, and TamaGo compiler are pinned. The first build compiles
-the matching TamaGo Go toolchain and can take several minutes.
+image, TamaGo module, TamaGo compiler, and go-net module are pinned. The first
+build compiles the matching TamaGo Go toolchain and can take several minutes.
 
 The complete build environment and two-build digest check are documented in
 [`REPRODUCIBLE_BUILDS.md`](REPRODUCIBLE_BUILDS.md). GitHub Actions verifies
@@ -124,13 +149,20 @@ branch above, and install this repository through **Plugins → + New Plugin**.
 The supported launch path is SPR's plugin manager because it signs the trusted
 runtime override and creates the SPR-owned Unix socket mapping.
 
-`plugin.json` selects the KVM runtime and adds **spr-tamago-demo** to the
-sidebar. `docker-compose-kvm.yml` contains exactly one `spr-krun` service and
-declares no plugin network capability or fixed IP.
+`plugin.json` selects the KVM runtime, adds **spr-tamago-demo** to the sidebar,
+and asks SPR for DHCP-backed WAN and DNS access. `docker-compose-kvm.yml`
+contains exactly one `spr-krun` service, one TAP-backed plugin network, and no
+fixed IP or Linux networking sidecar.
 
 Open **spr-tamago-demo** in the SPR sidebar. A successful response includes
 `X-TamaGo-Kernel: true`; `/status` reports `"role":"kernel"`,
-`"linux":false`, and `"ipc":"virtio-vsock"`.
+`"linux":false`, `"ipc":"virtio-vsock"`, and a `network` object. On an SPR
+host that object should reach `"phase":"online"` and report
+`"probe":"DNS + TCP example.com:80 succeeded"`.
+
+On macOS/HVF the exact kernel can be booted to regression-test the vsock UI.
+The SPR bridge, DHCP service, and TAP policy are Linux-host facilities, so the
+complete Internet path is verified on an SPR host.
 
 ## Verify
 

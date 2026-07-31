@@ -17,7 +17,9 @@ file, `go.mod`, the Dockerfile, and Compose.
   module proxy for the first cold build
 
 The Dockerfile pins the Go builder image by digest. `go.mod` and `go.sum` pin
-and authenticate TamaGo and all transitive Go modules. The
+and authenticate TamaGo, `usbarmory/go-net`, and all transitive Go modules.
+`GO_NET_VERSION` and `GO_NET_COMMIT` record the exact official VirtIO-network
+source selected for the kernel. The
 TamaGo compiler wrapper normally shallow-clones a mutable tag; this build
 pre-installs its toolchain from the exact `TAMAGO_GO_COMMIT` instead and checks
 the checkout before compiling the kernel.

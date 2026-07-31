@@ -32,6 +32,7 @@ docker buildx build \
     --build-arg "SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}" \
     --build-arg "TAMAGO_GO_VERSION=${TAMAGO_GO_VERSION}" \
     --build-arg "TAMAGO_GO_COMMIT=${TAMAGO_GO_COMMIT}" \
+    --build-arg "GO_NET_VERSION=${GO_NET_VERSION}" \
     --provenance=false \
     --sbom=false \
     ${extra[@]+"${extra[@]}"} \

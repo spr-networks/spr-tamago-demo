@@ -6,6 +6,7 @@ ARG TARGETARCH
 ARG SOURCE_DATE_EPOCH=0
 ARG TAMAGO_GO_VERSION=tamago-go1.26.4
 ARG TAMAGO_GO_COMMIT=c6c7dc072c5248c9b668d4ad0af1d7653eb3cfa5
+ARG GO_NET_VERSION=v0.0.0-20260714134120-c2c964e7084c
 ENV SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}
 WORKDIR /src
 
@@ -43,6 +44,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     set -eux; \
     test "${TARGETARCH}" = arm64; \
     go test ./...; \
+    test "$(go list -m -f '{{.Version}}' github.com/usbarmory/go-net)" = "${GO_NET_VERSION}"; \
     TAMAGO_DIR="$(go list -m -f '{{.Dir}}' github.com/usbarmory/tamago)"; \
     go run ./tools/prepare_tamago.go \
       -tamago-dir "${TAMAGO_DIR}" \

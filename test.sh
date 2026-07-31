@@ -11,7 +11,9 @@ jq -e '
   .HasUI == true and
   .SandboxedUI == true and
   .Enabled == true and
-  (has("NetworkCapabilities") | not)
+  .NetworkCapabilities.Interface == "spr-tamago-demo" and
+  .NetworkCapabilities.DeviceMAC == "02:53:50:52:54:01" and
+  .NetworkCapabilities.Policies == ["wan", "dns"]
 ' plugin.json >/dev/null
 
 echo "[2/6] Validating reproducible inputs and shell scripts"
@@ -35,9 +37,12 @@ jq -e '
   .services["spr-tamago-demo"].annotations["krun.kernel_format"] == "0" and
   .services["spr-tamago-demo"].annotations["krun.vsock_path"] == "/state/plugins/spr-tamago-demo/socket.sock" and
   .services["spr-tamago-demo"].annotations["krun.vsock_port"] == "4040" and
-  (.services["spr-tamago-demo"].annotations | has("krun.tap_name") | not) and
-  (.services["spr-tamago-demo"].annotations | has("krun.net_uplink") | not) and
-  (.services["spr-tamago-demo"] | has("devices") | not)
+  .services["spr-tamago-demo"].annotations["krun.tap_name"] == "kruntap0" and
+  .services["spr-tamago-demo"].annotations["krun.net_uplink"] == "eth0" and
+  (.services["spr-tamago-demo"].devices | any(.source == "/dev/net/tun" and .target == "/dev/net/tun")) and
+  .networks.tamagonet.name == "spr-tamago-demo" and
+  .networks.tamagonet.driver_opts["com.docker.network.bridge.name"] == "spr-tamago-demo" and
+  .networks.tamagonet.driver_opts["com.docker.network.bridge.inhibit_ipv4"] == "true"
 ' <<<"${compose_json}" >/dev/null
 
 echo "[5/6] Checking direct-kernel inputs"
@@ -48,6 +53,7 @@ jq -e '
 ' .krun_vm.json >/dev/null
 grep -Fq 'Direct-booted kernel · no Linux guest' kernel/main.go
 grep -Fq 'virtio-vsock' kernel/main.go
+grep -Fq 'go startInternetNetworking()' kernel/main.go
 grep -Fq 'DeviceID = 19' kernel/vsock/protocol.go
 grep -Fq 'func printk(_ byte) {}' kernel/runtime.go
 ! grep -Fq 'pl011Base' kernel/runtime.go
@@ -57,7 +63,13 @@ test -f overlays/virtio_arm64.go
 test -f overlays/virtio_arm64_empty.go
 grep -Fq 'sprDMAStart uint64 = 0x8c000000' tools/prepare_tamago.go
 grep -Fq 'case addr >= sprDMAStart && addr < sprDMAEnd:' tools/prepare_tamago.go
-test ! -e kernel/virtionet/net.go
+test -f kernel/sprnet/dhcp.go
+test -f kernel/sprnet/virtio_tamago.go
+grep -Fq 'github.com/usbarmory/go-net/virtio' kernel/sprnet/virtio_tamago.go
+grep -Fq 'DHCPDISCOVER and DHCPREQUEST' kernel/sprnet/dhcp.go
+grep -Fq 'DNS + TCP example.com:80 succeeded' kernel/network_tamago.go
+grep -Fq 'krun.tap_name: "kruntap0"' docker-compose-kvm.yml
+grep -Fq 'krun.net_uplink: "eth0"' docker-compose-kvm.yml
 test ! -e gateway.go
 test ! -e gateway_test.go
 ! grep -REq '192\.0\.2\.|ipv4_address:|TAMAGO_URL|spr-tamago-demo-gateway' \

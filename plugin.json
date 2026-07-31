@@ -6,5 +6,10 @@
   "HasUI": true,
   "Icon": "Terminal",
   "SandboxedUI": true,
+  "NetworkCapabilities": {
+    "Interface": "spr-tamago-demo",
+    "DeviceMAC": "02:53:50:52:54:01",
+    "Policies": ["wan", "dns"]
+  },
   "Enabled": true
 }

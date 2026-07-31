@@ -19,6 +19,7 @@ services:
         SOURCE_DATE_EPOCH: ${SOURCE_DATE_EPOCH:-0}
         TAMAGO_GO_VERSION: ${TAMAGO_GO_VERSION:-tamago-go1.26.4}
         TAMAGO_GO_COMMIT: ${TAMAGO_GO_COMMIT:-c6c7dc072c5248c9b668d4ad0af1d7653eb3cfa5}
+        GO_NET_VERSION: ${GO_NET_VERSION:-v0.0.0-20260714134120-c2c964e7084c}
       labels: *default-labels
     restart: unless-stopped
     read_only: true
@@ -26,3 +27,12 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
+    networks:
+      - tamagonet
+
+networks:
+  tamagonet:
+    name: spr-tamago-demo
+    driver_opts:
+      com.docker.network.bridge.name: spr-tamago-demo
+      com.docker.network.bridge.inhibit_ipv4: "true"

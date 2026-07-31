@@ -32,6 +32,8 @@ required=(
     TAMAGO_COMMIT
     TAMAGO_GO_VERSION
     TAMAGO_GO_COMMIT
+    GO_NET_VERSION
+    GO_NET_COMMIT
     SOURCE_DATE_EPOCH
 )
 for name in "${required[@]}"; do
@@ -54,9 +56,12 @@ tamago_version="$(awk '
   $1 == "github.com/usbarmory/tamago" { print $2; exit }
   $1 == "require" && $2 == "github.com/usbarmory/tamago" { print $3; exit }
 ' go.mod)"
+go_net_version="$(awk '$1 == "github.com/usbarmory/go-net" { print $2; exit }' go.mod)"
 
 [[ "${go_version}" == "${GO_VERSION}" ]]
 [[ "${tamago_version}" == "${TAMAGO_VERSION}" ]]
+[[ "${go_net_version}" == "${GO_NET_VERSION}" ]]
+[[ "${GO_NET_VERSION}" == *"-${GO_NET_COMMIT:0:12}" ]]
 [[ "${TAMAGO_VERSION}" == *"-${TAMAGO_COMMIT}" ]]
 [[ "${TAMAGO_GO_VERSION}" == "tamago-go${GO_VERSION}" ]]
 [[ "${BUILDX_VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
@@ -66,7 +71,9 @@ grep -Fqx "# syntax=${DOCKERFILE_SYNTAX}" Dockerfile
 grep -Fqx "ARG GO_REF=${GO_REF}" Dockerfile
 grep -Fqx "ARG TAMAGO_GO_VERSION=${TAMAGO_GO_VERSION}" Dockerfile
 grep -Fqx "ARG TAMAGO_GO_COMMIT=${TAMAGO_GO_COMMIT}" Dockerfile
+grep -Fqx "ARG GO_NET_VERSION=${GO_NET_VERSION}" Dockerfile
 grep -Fq "GO_REF: \${GO_REF:-${GO_REF}}" docker-compose.yml
 grep -Fq "TAMAGO_GO_COMMIT: \${TAMAGO_GO_COMMIT:-${TAMAGO_GO_COMMIT}}" docker-compose.yml
+grep -Fq "GO_NET_VERSION: \${GO_NET_VERSION:-${GO_NET_VERSION}}" docker-compose.yml
 
 echo "Reproducible input pins are internally consistent."
