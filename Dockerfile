@@ -1,9 +1,28 @@
 # syntax=docker/dockerfile:1@sha256:87999aa3d42bdc6bea60565083ee17e86d1f3339802f543c0d03998580f9cb89
+ARG NODE_REF=node:18@sha256:c6ae79e38498325db67193d391e6ec1d224d96c693a8a4d943498556716d3783
 ARG GO_REF=docker.io/library/golang:1.26.4-bookworm@sha256:b305420a68d0f229d91eb3b3ed9e519fcf2cf5461da4bef997bf927e8c0bfd2b
+
+FROM ${NODE_REF} AS frontend
+ARG YARN_VERSION=1.22.22
+ARG PLUGIN_UI_COMMIT=05f5961ec472b10392c5fe85c6bcc4860a64dbd0
+WORKDIR /src/frontend
+COPY frontend/package.json frontend/yarn.lock ./
+COPY frontend/public/ ./public/
+COPY frontend/src/ ./src/
+COPY frontend/craco.config.js frontend/bundle.sh frontend/move-inline-scripts.js ./
+RUN --mount=type=tmpfs,target=/usr/local/share/.cache/yarn \
+    --mount=type=tmpfs,target=/src/frontend/node_modules \
+    set -eux; \
+    test "$(yarn --version)" = "${YARN_VERSION}"; \
+    grep -Fq "${PLUGIN_UI_COMMIT}" package.json; \
+    yarn install --frozen-lockfile --network-timeout 86400000; \
+    yarn bundle; \
+    test -s build/index.html
 
 FROM ${GO_REF} AS builder
 ARG TARGETARCH
 ARG SOURCE_DATE_EPOCH=0
+ARG TAMAGO_VERSION=v1.26.5-0.20260626120227-bb8159e64f82
 ARG TAMAGO_GO_VERSION=tamago-go1.26.4
 ARG TAMAGO_GO_COMMIT=c6c7dc072c5248c9b668d4ad0af1d7653eb3cfa5
 ARG GO_NET_VERSION=v0.0.0-20260714134120-c2c964e7084c
@@ -15,6 +34,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
 
 COPY kernel/ ./kernel/
+COPY --from=frontend /src/frontend/build/index.html ./kernel/ui/index.html
 COPY overlays/ ./overlays/
 COPY tools/ ./tools/
 
@@ -60,7 +80,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
         -buildvcs=false \
         -trimpath \
         -tags=tamago \
-        -ldflags="-T 0x80010000 -R 0x1000 -s -w -buildid=" \
+        -ldflags="-T 0x80010000 -R 0x1000 -X main.tamagoVersion=${TAMAGO_VERSION} -s -w -buildid=" \
         -o /tamago-kernel.elf \
         ./kernel; \
     go run ./tools/elf2raw.go \

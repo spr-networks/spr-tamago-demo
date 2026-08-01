@@ -6,8 +6,12 @@ A Hello World SPR plugin implemented as a single
 [TamaGo](https://github.com/usbarmory/tamago) ARM64 kernel running under krun.
 There is no Linux kernel, init process, guest userspace, or sidecar service.
 
-The kernel itself terminates a VirtIO-vsock stream on port 4040 and serves the
-plugin HTML and `/status` endpoint. It also drives VirtIO-net, obtains its IPv4
+The kernel itself terminates a VirtIO-vsock stream on port 4040 and serves a
+single-file React UI built with
+[`@spr-networks/plugin-ui`](https://github.com/spr-networks/spr-plugin-ui),
+plus the `/status` endpoint. The build embeds that HTML into the Go kernel; no
+frontend files or Node runtime exist in the delivered image. It also drives
+VirtIO-net, obtains its IPv4
 configuration from SPR DHCP, and verifies outbound DNS and TCP connectivity.
 SPR and its krun runtime map the plugin's host Unix socket to the guest port:
 
@@ -35,7 +39,8 @@ The one `scratch` image contains:
 - no Linux filesystem or executable userspace.
 
 The kernel includes the pinned `usbarmory/go-net` VirtIO-net driver, a small
-raw-Ethernet DHCP client, and go-net's userspace IP stack.
+raw-Ethernet DHCP client, go-net's userspace IP stack, and the compiled SPR
+Plugin UI SDK bundle.
 
 The Docker command is deliberately `/unused`: the trusted SPR krun policy
 selects `/tamago-kernel` as the VM kernel before a container process could run.
@@ -133,9 +138,10 @@ Build or publish the single ARM64 image:
 ./build_docker_compose.sh --push
 ```
 
-The default tag is `ghcr.io/spr-networks/spr-tamago-demo:latest`. The builder
-image, TamaGo module, TamaGo compiler, and go-net module are pinned. The first
-build compiles the matching TamaGo Go toolchain and can take several minutes.
+The default tag is `ghcr.io/spr-networks/spr-tamago-demo:latest`. The Node and
+Go builder images, SPR Plugin UI SDK, Yarn, TamaGo module, TamaGo compiler, and
+go-net module are pinned. The first build compiles the matching TamaGo Go
+toolchain and can take several minutes.
 
 The complete build environment and two-build digest check are documented in
 [`REPRODUCIBLE_BUILDS.md`](REPRODUCIBLE_BUILDS.md). GitHub Actions verifies
@@ -156,8 +162,10 @@ fixed IP or Linux networking sidecar.
 
 Open **spr-tamago-demo** in the SPR sidebar. A successful response includes
 `X-TamaGo-Kernel: true`; `/status` reports `"role":"kernel"`,
-`"linux":false`, `"ipc":"virtio-vsock"`, and a `network` object. On an SPR
-host that object should reach `"phase":"online"` and report
+`"linux":false`, `"tamago_version"`, `"ipc":"virtio-vsock"`, and a `network`
+object. The SDK UI reads that endpoint through SPR's authenticated plugin API,
+follows the host theme, and displays the linked TamaGo version. On an SPR host
+that object should reach `"phase":"online"` and report
 `"probe":"DNS + TCP example.com:80 succeeded"`.
 
 On macOS/HVF the exact kernel can be booted to regression-test the vsock UI.
@@ -175,6 +183,11 @@ Run the unit, manifest, Compose, source, and reproducible-input checks:
 To build the kernel without Docker, use the matching TamaGo compiler wrapper:
 
 ```sh
+yarn --cwd frontend install --frozen-lockfile
+yarn --cwd frontend bundle
+mkdir -p kernel/ui
+cp frontend/build/index.html kernel/ui/index.html
+
 BUILD_DIR="$(mktemp -d)"
 TAMAGO_MODULE="$(go list -m -f '{{.Dir}}' github.com/usbarmory/tamago)"
 

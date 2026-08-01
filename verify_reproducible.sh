@@ -26,6 +26,10 @@ required=(
     BUILDKIT_REF
     BUILDX_VERSION
     BINFMT_REF
+    NODE_REF
+    YARN_VERSION
+    PLUGIN_UI_VERSION
+    PLUGIN_UI_COMMIT
     GO_REF
     GO_VERSION
     TAMAGO_VERSION
@@ -43,7 +47,7 @@ for name in "${required[@]}"; do
     fi
 done
 
-for name in DOCKERFILE_SYNTAX BUILDKIT_REF BINFMT_REF GO_REF; do
+for name in DOCKERFILE_SYNTAX BUILDKIT_REF BINFMT_REF NODE_REF GO_REF; do
     value="${!name}"
     if [[ ! "${value}" =~ @sha256:[0-9a-f]{64}$ ]]; then
         echo "${name} is not pinned by sha256 digest" >&2
@@ -68,11 +72,22 @@ go_net_version="$(awk '$1 == "github.com/usbarmory/go-net" { print $2; exit }' g
 [[ "${SOURCE_DATE_EPOCH}" == "0" ]]
 
 grep -Fqx "# syntax=${DOCKERFILE_SYNTAX}" Dockerfile
+grep -Fqx "ARG NODE_REF=${NODE_REF}" Dockerfile
 grep -Fqx "ARG GO_REF=${GO_REF}" Dockerfile
+grep -Fqx "ARG YARN_VERSION=${YARN_VERSION}" Dockerfile
+grep -Fqx "ARG PLUGIN_UI_COMMIT=${PLUGIN_UI_COMMIT}" Dockerfile
+grep -Fqx "ARG TAMAGO_VERSION=${TAMAGO_VERSION}" Dockerfile
 grep -Fqx "ARG TAMAGO_GO_VERSION=${TAMAGO_GO_VERSION}" Dockerfile
 grep -Fqx "ARG TAMAGO_GO_COMMIT=${TAMAGO_GO_COMMIT}" Dockerfile
 grep -Fqx "ARG GO_NET_VERSION=${GO_NET_VERSION}" Dockerfile
+grep -Fq "\"@spr-networks/plugin-ui\": \"git+https://github.com/spr-networks/spr-plugin-ui.git#${PLUGIN_UI_COMMIT}\"" frontend/package.json
+grep -A2 -F "@spr-networks/plugin-ui@git+https://github.com/spr-networks/spr-plugin-ui.git#${PLUGIN_UI_COMMIT}" frontend/yarn.lock | grep -Fqx "  version \"${PLUGIN_UI_VERSION}\""
+grep -Fq "resolved \"git+https://github.com/spr-networks/spr-plugin-ui.git#${PLUGIN_UI_COMMIT}\"" frontend/yarn.lock
+grep -Fq "NODE_REF: \${NODE_REF:-${NODE_REF}}" docker-compose.yml
 grep -Fq "GO_REF: \${GO_REF:-${GO_REF}}" docker-compose.yml
+grep -Fq "YARN_VERSION: \${YARN_VERSION:-${YARN_VERSION}}" docker-compose.yml
+grep -Fq "PLUGIN_UI_COMMIT: \${PLUGIN_UI_COMMIT:-${PLUGIN_UI_COMMIT}}" docker-compose.yml
+grep -Fq "TAMAGO_VERSION: \${TAMAGO_VERSION:-${TAMAGO_VERSION}}" docker-compose.yml
 grep -Fq "TAMAGO_GO_COMMIT: \${TAMAGO_GO_COMMIT:-${TAMAGO_GO_COMMIT}}" docker-compose.yml
 grep -Fq "GO_NET_VERSION: \${GO_NET_VERSION:-${GO_NET_VERSION}}" docker-compose.yml
 

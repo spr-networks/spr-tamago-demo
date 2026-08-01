@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"strings"
 	"sync"
 	"time"
 
@@ -167,11 +166,4 @@ func addrStrings(addrs []netip.Addr) []string {
 		}
 	}
 	return values
-}
-
-func dnsText(values []string) string {
-	if len(values) == 0 {
-		return "awaiting DHCP"
-	}
-	return strings.Join(values, ", ")
 }

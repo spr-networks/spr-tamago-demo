@@ -17,12 +17,12 @@ jq -e '
 ' plugin.json >/dev/null
 
 echo "[2/6] Validating reproducible inputs and shell scripts"
-bash -n build_docker_compose.sh reproducibility_test.sh test.sh verify_reproducible.sh
+bash -n build_docker_compose.sh reproducibility_test.sh test.sh verify_reproducible.sh frontend/bundle.sh
 ./verify_reproducible.sh
 
 echo "[3/6] Verifying and testing Go modules"
 go mod verify
-go test ./...
+go test ./kernel/... ./overlays/... ./tools/...
 
 echo "[4/6] Validating Compose"
 docker compose -f docker-compose.yml config --quiet
@@ -51,7 +51,15 @@ jq -e '
   .kernel_format == 0 and
   .ram_mib == 256
 ' .krun_vm.json >/dev/null
-grep -Fq 'Direct-booted kernel · no Linux guest' kernel/main.go
+grep -Fq 'Direct-booted Go kernel under krun' frontend/src/Plugin.js
+grep -Fq 'Hello World from the TamaGo kernel!' frontend/src/Plugin.js
+grep -Fq "from '@spr-networks/plugin-ui'" frontend/src/index.js frontend/src/Plugin.js
+grep -Fq '<PluginApp>' frontend/src/index.js
+grep -Fq 'move-inline-scripts.js' frontend/bundle.sh Dockerfile
+grep -Fq '//go:embed ui/index.html' kernel/main.go
+grep -Fq 'tamago_version' kernel/main.go frontend/src/Plugin.js
+grep -Fq 'COPY --from=frontend /src/frontend/build/index.html ./kernel/ui/index.html' Dockerfile
+! grep -REq 'Linux (in VM|kernel).*(none)' frontend/src
 grep -Fq 'virtio-vsock' kernel/main.go
 grep -Fq 'go startInternetNetworking()' kernel/main.go
 grep -Fq 'DeviceID = 19' kernel/vsock/protocol.go
@@ -77,6 +85,7 @@ test ! -e gateway_test.go
 
 echo "[6/6] Checking CI and reproducibility targets"
 grep -Eq '^FROM scratch AS reproducibility$' Dockerfile
+grep -Eq '^FROM \$\{NODE_REF\} AS frontend$' Dockerfile
 grep -Eq '^  reproducibility:$' .github/workflows/ci.yml
 grep -Fq 'rewrite-timestamp=true' build_docker_compose.sh reproducibility_test.sh
 

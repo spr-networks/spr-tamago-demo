@@ -3,3 +3,6 @@ tamago-kernel
 tamago-kernel.elf
 spr-tamago-gateway
 *.tar
+frontend/build/
+frontend/node_modules/
+kernel/ui/

@@ -2,3 +2,6 @@
 .DS_Store
 tamago-kernel
 tamago-kernel.elf
+frontend/build
+frontend/node_modules
+kernel/ui
