@@ -98,16 +98,29 @@ func startInternetNetworking() {
 		s.Lease = lease.Duration.String()
 		s.Error = ""
 	})
-	probeInternet()
+	probeInternetUntilReady()
 }
 
-func probeInternet() {
+// probeInternetUntilReady handles the short interval between DHCPACK and SPR
+// applying the IP-based WAN/DNS policy for the new lease. There is no guest
+// event for that host-side transition, so retry the observable probe until the
+// policy becomes active instead of leaving a stale degraded boot result.
+func probeInternetUntilReady() {
+	for !probeInternet() {
+		retry := time.NewTimer(5 * time.Second)
+		<-retry.C
+	}
+}
+
+func probeInternet() bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	ips, err := net.DefaultResolver.LookupHost(ctx, "example.com")
 	if err != nil {
-		setNetworkStatus(func(s *networkStatus) { s.Phase, s.Error = "degraded", fmt.Sprintf("DNS probe: %v", err) })
-		return
+		setNetworkStatus(func(s *networkStatus) {
+			s.Phase, s.Probe, s.Error = "degraded", "", fmt.Sprintf("DNS probe: %v", err)
+		})
+		return false
 	}
 	var ipv4 string
 	for _, ip := range ips {
@@ -117,13 +130,17 @@ func probeInternet() {
 		}
 	}
 	if ipv4 == "" {
-		setNetworkStatus(func(s *networkStatus) { s.Phase, s.Error = "degraded", "DNS probe returned no IPv4 address" })
-		return
+		setNetworkStatus(func(s *networkStatus) {
+			s.Phase, s.Probe, s.Error = "degraded", "", "DNS probe returned no IPv4 address"
+		})
+		return false
 	}
 	conn, err := (&net.Dialer{Timeout: 5 * time.Second}).DialContext(ctx, "tcp4", net.JoinHostPort(ipv4, "80"))
 	if err != nil {
-		setNetworkStatus(func(s *networkStatus) { s.Phase, s.Error = "degraded", fmt.Sprintf("Internet TCP probe: %v", err) })
-		return
+		setNetworkStatus(func(s *networkStatus) {
+			s.Phase, s.Probe, s.Error = "degraded", "", fmt.Sprintf("Internet TCP probe: %v", err)
+		})
+		return false
 	}
 	_ = conn.Close()
 	setNetworkStatus(func(s *networkStatus) {
@@ -131,6 +148,7 @@ func probeInternet() {
 		s.Probe = "DNS + TCP example.com:80 succeeded"
 		s.Error = ""
 	})
+	return true
 }
 
 func addrString(addr netip.Addr) string {
