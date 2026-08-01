@@ -53,6 +53,7 @@ jq -e '
 ' .krun_vm.json >/dev/null
 grep -Fq 'Direct-booted Go kernel under krun' frontend/src/Plugin.js
 grep -Fq 'Hello World from the TamaGo kernel!' frontend/src/Plugin.js
+grep -Fq 'Copyright (c) The TamaGo Authors. All Rights Reserved.' frontend/src/Plugin.js
 grep -Fq "from '@spr-networks/plugin-ui'" frontend/src/index.js frontend/src/Plugin.js
 grep -Fq '<PluginApp>' frontend/src/index.js
 grep -Fq 'move-inline-scripts.js' frontend/bundle.sh Dockerfile

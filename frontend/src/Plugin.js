@@ -116,6 +116,10 @@ export default function Plugin() {
           {error ? <Text color="$amber700" sx={{ _dark: { color: '$amber300' } }}>{error}</Text> : null}
         </VStack>
       </Card>
+
+      <Text size="xs" color="$muted500" textAlign="center">
+        Copyright (c) The TamaGo Authors. All Rights Reserved.
+      </Text>
     </Page>
   )
 }
