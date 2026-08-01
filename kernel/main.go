@@ -151,6 +151,9 @@ func main() {
 	}
 
 	log.Printf("virtio-vsock MMIO=%#x CID=%d HTTP port=%d", base, dev.CID(), vsockPort)
+	if err := dev.Start(); err != nil {
+		log.Fatal(err)
+	}
 	go startInternetNetworking()
 	if err := dev.Serve(vsockPort, handleRequest); err != nil {
 		log.Fatal(err)

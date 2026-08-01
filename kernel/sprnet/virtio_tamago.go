@@ -27,8 +27,17 @@ func FindVirtioNet(start, end, step uint32, fallbackMAC string) (*vnet.Net, uint
 		if err := dev.Init(); err != nil {
 			return nil, base, nil, err
 		}
-		config := dev.Config()
-		mac := append(net.HardwareAddr(nil), config.MAC[:]...)
+		mac := append(net.HardwareAddr(nil), fallback...)
+		if transport.NegotiatedFeatures()&vnet.FeatureMAC != 0 {
+			// VirtIO-net config fields are feature-dependent. Read exactly the
+			// advertised MAC prefix rather than go-net's fixed 12-byte struct,
+			// which crosses libkrun's config region when MTU is not offered.
+			config := transport.Config(6)
+			if len(config) != 6 {
+				return nil, base, nil, errors.New("virtio-net MAC configuration unavailable")
+			}
+			mac = append(mac[:0], config...)
+		}
 		if invalidMAC(mac) {
 			mac = append(net.HardwareAddr(nil), fallback...)
 		}

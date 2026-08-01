@@ -27,6 +27,7 @@ type Device struct {
 	txDepth uint16
 	txSent  uint16
 	cid     uint64
+	started bool
 }
 
 func (d *Device) initQueue(index, length int, flags uint16) (*virtio.VirtualQueue, int, error) {
@@ -90,13 +91,24 @@ func (d *Device) CID() uint64 {
 	return d.cid
 }
 
-func (d *Device) start() {
+// Start activates the VirtIO-vsock queues. It is separate from Serve so the
+// control-plane transport can reach DRIVER_OK before optional guest devices
+// are initialized.
+func (d *Device) Start() error {
+	if d.rx == nil || d.tx == nil || d.event == nil {
+		return errors.New("VirtIO-vsock device is not initialized")
+	}
+	if d.started {
+		return nil
+	}
 	d.Transport.SetQueue(ReceiveQueue, d.rx)
 	d.Transport.SetQueue(TransmitQueue, d.tx)
 	d.Transport.SetQueue(EventQueue, d.event)
 	d.Transport.SetReady()
 	d.Transport.QueueNotify(ReceiveQueue)
 	d.Transport.QueueNotify(EventQueue)
+	d.started = true
+	return nil
 }
 
 func (d *Device) txAvailable() bool {
@@ -105,14 +117,13 @@ func (d *Device) txAvailable() bool {
 
 // Serve listens on port and dispatches complete HTTP requests to handler.
 func (d *Device) Serve(port uint32, handler func([]byte) []byte) error {
-	if d.rx == nil || d.tx == nil || d.event == nil {
-		return errors.New("VirtIO-vsock device is not initialized")
+	if err := d.Start(); err != nil {
+		return err
 	}
 	endpoint := NewEndpoint(d.cid, port, handler)
 	pending := [][]byte{}
 	rxBuffer := make([]byte, packetBufferSize)
 	eventBuffer := make([]byte, eventBufferSize)
-	d.start()
 
 	for {
 		progress := false
